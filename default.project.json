@@ -1,0 +1,11 @@
+{
+	"name": "rep-data-module",
+	"tree": {
+		"$className": "DataModel",
+		"ReplicatedStorage": {
+			"$className": "ReplicatedStorage",
+			"$ignoreUnknownInstances": true,
+			"$path": "ReplicatedStorage"
+		}
+	}
+}

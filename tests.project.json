@@ -1,0 +1,25 @@
+{
+	"name": "rep-data-tests",
+	"tree": {
+		"$className": "DataModel",
+		"ReplicatedStorage": {
+			"$className": "ReplicatedStorage",
+			"$ignoreUnknownInstances": true,
+			"$path": "ReplicatedStorage"
+		},
+		"ServerScriptService" : {
+			"$className" : "ServerScriptService",
+			"$ignoreUnknownInstances": true,
+			"$path" : "tests/server"
+		},
+		"StarterPlayer" : {
+			"$className" : "StarterPlayer",
+			"$ignoreUnknownInstances": true,
+			"StarterPlayerScripts" : {
+				"$className" : "StarterPlayerScripts",
+				"$ignoreUnknownInstances": true,
+				"$path" : "tests/client"
+			}
+		}
+	}
+}
