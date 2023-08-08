@@ -8,6 +8,14 @@ export type deltaTable = {
 -- // Module // --
 local Module = {}
 
+function Module:DictKeys( dict )
+	local Keys = {}
+	for key, _ in pairs(dict) do
+		table.insert(Keys, key)
+	end
+	return Keys
+end
+
 function Module:readDeltaTable( old, new ) : deltaTable
 	local edits = {}
 	for propName, propValue in pairs( new ) do
