@@ -1,6 +1,8 @@
 local HttpService = game:GetService("HttpService")
 
-local function deltaTable( old, new ) : { ["Edits"] : { [any] : any } , ["Removals"] : { any }  }
+export type deltaTable = { ["Edits"] : { [any] : any } , ["Removals"] : { any }  }
+
+local function deltaTable( old, new ) : deltaTable
 	local edits = {}
 	for propName, propValue in pairs( new ) do
 		-- if value does not exist in the old table, was added
@@ -40,7 +42,7 @@ local function deltaTable( old, new ) : { ["Edits"] : { [any] : any } , ["Remova
 	return {Edits = edits, Removals = removals}
 end
 
-local function applyDeltaTable( target, delta )
+local function applyDeltaTable( target, delta : deltaTable )
 	for propName, propValue in pairs( delta.Edits ) do
 		target[propName] = propValue
 	end
