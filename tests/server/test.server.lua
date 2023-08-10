@@ -1,101 +1,53 @@
-local HttpService = game:GetService("HttpService")
+local Players = game:GetService('Players')
 
-export type deltaTable = { ["Edits"] : { [any] : any } , ["Removals"] : { any }  }
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ReplicatedData = require(ReplicatedStorage:WaitForChild('ReplicatedData'))
+local RNetModule = require(ReplicatedStorage:WaitForChild('RNet'))
 
-local function deltaTable( old, new ) : deltaTable
-	local edits = {}
-	for propName, propValue in pairs( new ) do
-		-- if value does not exist in the old table, was added
-		local oldValue = old[propName]
-		if oldValue == nil then
-			-- print("New index addition: ", propName)
-			edits[propName] = propValue
-			continue
-		end
+local function OnPlayerAdded( LocalPlayer )
 
-		if typeof(propValue) == 'Instance' or typeof(oldValue) == "Instance" then
-			if propValue ~= oldValue then
-				-- print("Instance at index changed: ", propName)
-				edits[propName] = propValue
+	local Data = {
+		Banned = nil,
+
+		Stats = {
+			Level = 1,
+			Experience = 8,
+
+			AttributePoints = 3,
+			SkillPoints = 2,
+		},
+
+		Inventory = {
+			["Apple"] = {
+				["AAAA-AAAA-AAAA"] = { Quantity = 3 }
+			},
+			["Pear"] = {
+				["BBBB-BBBB-BBBB"] = { Quantity = 6 }
+			},
+		},
+	}
+
+	print("Set Replicated Data: ", LocalPlayer.Name)
+	ReplicatedData:SetData('PlayerData', Data, { LocalPlayer })
+
+	task.defer(function()
+		while true do
+			task.wait(0.25)
+			Data.Stats.Experience += 8
+			if Data.Stats.Experience % 48 == 0 then
+				Data.Stats.Experience = 0
+				Data.Stats.Level += 1
+				Data.Inventory.Apple["AAAA-AAAA-AAAA"].Quantity += 2
+				Data.Inventory.Pear["BBBB-BBBB-BBBB"].Quantity += 1
 			end
-		elseif typeof(propValue) == "table" and typeof(oldValue) == "table" then
-			-- table has not changed
-			if HttpService:JSONEncode(propValue) == HttpService:JSONEncode(oldValue) then
-				continue
-			end
-			-- has changed (deepDeltaTable?)
-			edits[propName] = propValue
-		elseif HttpService:JSONEncode(propValue) ~= HttpService:JSONEncode(oldValue) then
-			-- print("Value(s) at index changed: ", propName)
-			edits[propName] = propValue
 		end
-	end
-
-	-- find any deleted items
-	local removals = {}
-	for propName, _ in pairs( old ) do
-		if new[propName] == nil then
-			table.insert(removals, propName)
-		end
-	end
-
-	return {Edits = edits, Removals = removals}
+	end)
 end
 
-local function applyDeltaTable( target, delta : deltaTable )
-	for propName, propValue in pairs( delta.Edits ) do
-		target[propName] = propValue
-	end
-	for _, propName in ipairs( delta.Removals ) do
-		target[propName] = nil
-	end
+for _, LocalPlayer in ipairs( Players:GetPlayers() ) do
+	task.defer( OnPlayerAdded, LocalPlayer )
 end
+Players.PlayerAdded:Connect(OnPlayerAdded)
 
-local before = {
-	Banned = nil,
-
-	Stats = {
-		Level = 1,
-		Experience = 8,
-
-		AttributePoints = 3,
-		SkillPoints = 2,
-	},
-
-	Inventory = {
-		["Apple"] = {
-			["AAAA-AAAA-AAAA"] = { Quantity = 3 }
-		},
-		["Pear"] = {
-			["BBBB-BBBB-BBBB"] = { Quantity = 6 }
-		},
-	},
-}
-
-local after = {
-	Banned = false,
-
-	Stats = {
-		Level = 2,
-		Experience = 40,
-
-		AttributePoints = 2,
-		SkillPoints = 1,
-	},
-
-	Inventory = {
-		["Apple"] = {
-			["AAAA-AAAA-AAAA"] = { Quantity = 4 }
-		},
-		["Pear"] = {
-			["BBBB-BBBB-BBBB"] = { Quantity = 7 }
-		},
-	},
-}
-
-local delta = deltaTable( before, after )
-print(delta)
-
-applyDeltaTable( before, delta )
-
-print( HttpService:JSONEncode(before) == HttpService:JSONEncode(after) )
+ReplicatedData:Init()
+ReplicatedData:Start()

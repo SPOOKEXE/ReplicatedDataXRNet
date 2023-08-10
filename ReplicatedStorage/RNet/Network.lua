@@ -35,9 +35,67 @@ local function DeepCopy(passed_table)
 end
 
 local function ConvertTableToCompressedValues( array )
-	-- array = DeepCopy(array)
+	array = DeepCopy(array)
 
-	--[[local cachedInstances = {}
+	local instanceToUUID = {}
+	local uuidToInstance = {}
+	local function getInstanceUUID( inst )
+		if instanceToUUID[inst] then
+			return instanceToUUID[inst]
+		end
+		local uuid = HttpService:GenerateGUID(false)
+		uuidToInstance[ uuid ] = inst
+		instanceToUUID[ inst ] = uuid
+		return uuid
+	end
+
+	local visited = {}
+	local function deepSearch( t )
+		if visited[t] then
+			return
+		end
+		visited[t] = true
+
+		for propName, propValue in pairs(t) do
+			-- index
+			-- print('check index: ', propName)
+			if typeof(propName) == "table" then
+				deepSearch( propName )
+			elseif typeof(propName) == "Instance" then
+				local uuid = getInstanceUUID( propName )
+				-- print(propName, uuid)
+				t[uuid] = propValue
+				t[propName] = nil
+			end
+			-- value
+			-- print("check value; ", propValue)
+			if typeof(propValue) == "table" then
+				deepSearch( propValue )
+			elseif typeof(propValue) == "Instance" then
+				local uuid = getInstanceUUID( propValue )
+				-- print(propValue, uuid)
+				t[propName] = uuid
+			end
+		end
+
+	end
+
+	deepSearch( array )
+
+	-- print(array, uuidToInstance)
+	array = HttpService:JSONEncode(array)
+	array = ToHex(array)
+	array = zlibModule.Zlib.Compress(array)
+	return array, uuidToInstance
+end
+
+local function ConvertCompressedValuesToTable( compressed, instanceCache )
+	compressed = zlibModule.Zlib.Decompress(compressed)
+	compressed = FromHex(compressed)
+	local processed = HttpService:JSONDecode(compressed)
+
+	-- print(compressed, instanceCache)
+
 	local visited = { }
 
 	local function deepSearch( t )
@@ -45,47 +103,7 @@ local function ConvertTableToCompressedValues( array )
 			return
 		end
 		visited[t] = true
-		for propName, propValue in pairs(t) do
-			-- index
-			if typeof(propName) == "table" then
-				deepSearch( propName )
-			elseif typeof(propName) == "Instance" then
-				local UUID = HttpService:GenerateGUID(false)
-				cachedInstances[propName] = UUID
-				t[UUID] = propValue
-				t[propName] = nil
-			end
-			-- value
-			if typeof(propValue) == "table" then
-				deepSearch( propValue )
-			elseif typeof(propValue) == "Instance" then
-				local UUID = HttpService:GenerateGUID(false)
-				cachedInstances[propValue] = UUID
-				t[propName] = UUID
-			end
-		end
-	end
 
-	deepSearch( array )]]
-
-	array = HttpService:JSONEncode(array)
-	array = ToHex(array)
-	array = zlibModule.Zlib.Compress(array)
-	return array--, cachedInstances
-end
-
-local function ConvertCompressedValuesToTable( compressed, instanceCache )
-	compressed = zlibModule.Zlib.Decompress(compressed)
-	compressed = FromHex(compressed)
-	compressed = HttpService:JSONDecode(compressed)
-
-	--[[local visited = { }
-
-	local function deepSearch( t )
-		if visited[t] then
-			return
-		end
-		visited[t] = true
 		for propName, propValue in pairs(t) do
 			-- index
 			if typeof(propName) == "table" then
@@ -93,8 +111,8 @@ local function ConvertCompressedValuesToTable( compressed, instanceCache )
 			elseif typeof(propName) == "string" then
 				local inst = instanceCache[propName]
 				if inst then
-					t[inst] = propValue
 					t[propName] = nil
+					t[inst] = propValue
 				end
 			end
 			-- value
@@ -109,8 +127,8 @@ local function ConvertCompressedValuesToTable( compressed, instanceCache )
 		end
 	end
 
-	deepSearch( compressed )]]
-	return compressed
+	deepSearch( processed )
+	return processed
 end
 
 -- // Module // --
@@ -119,12 +137,12 @@ local Module = {}
 if RunService:IsServer() then
 
 	-- SERVER SIDE
-	function Module:Fire( remoteEvent : RemoteEvent, target : Player, ARGS : { any } )
-		remoteEvent:FireClient(target, ConvertTableToCompressedValues(ARGS))
+	function Module:Fire( remoteEvent : RemoteEvent, target : Player, ... : any? )
+		remoteEvent:FireClient(target, ConvertTableToCompressedValues(...))
 	end
 
-	function Module:FireAll( remoteEvent : RemoteEvent, ARGS : { any } )
-		remoteEvent:FireAllClients(ConvertTableToCompressedValues(ARGS))
+	function Module:FireAll( remoteEvent : RemoteEvent, ... : any? )
+		remoteEvent:FireAllClients( ConvertTableToCompressedValues(...) )
 	end
 
 	function Module:InvokeClient( remoteFunction : RemoteFunction, target : Player, ... : any? )
@@ -132,8 +150,8 @@ if RunService:IsServer() then
 	end
 
 	function Module:ReceiveEvent( remoteEvent : RemoteEvent, callback : (...any?) -> any? )
-		remoteEvent.OnServerEvent:Connect(function(playerInstance, ARGS : { any })
-			local decompressed = ConvertCompressedValuesToTable(ARGS)
+		remoteEvent.OnServerEvent:Connect(function(playerInstance, ... : any?)
+			local decompressed = ConvertCompressedValuesToTable(...)
 			callback(playerInstance, unpack(decompressed))
 		end)
 	end
@@ -145,8 +163,8 @@ if RunService:IsServer() then
 else
 
 	-- CLIENT SIDE
-	function Module:Fire( remoteEvent : RemoteEvent, ARGS : { any } )
-		remoteEvent:FireServer(ConvertTableToCompressedValues(ARGS))
+	function Module:Fire( remoteEvent : RemoteEvent, ... : any? )
+		remoteEvent:FireServer(ConvertTableToCompressedValues(...))
 	end
 
 	function Module:Invoke( remoteFunction : RemoteFunction, ... : any? )
@@ -154,8 +172,8 @@ else
 	end
 
 	function Module:ReceiveEvent( remoteEvent : RemoteEvent, callback : (...any?) -> any? )
-		remoteEvent.OnClientEvent:Connect(function(ARGS : { any })
-			local value = ConvertCompressedValuesToTable(ARGS)
+		remoteEvent.OnClientEvent:Connect(function(... : any?)
+			local value = ConvertCompressedValuesToTable(...)
 			callback(unpack(value))
 		end)
 	end

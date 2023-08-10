@@ -3,14 +3,15 @@ local Players = game:GetService('Players')
 local RunService = game:GetService('RunService')
 local HttpService = game:GetService('HttpService')
 
-local ReplicatedStorage = game:GetService('ReplicatedStorage')
-local ReplicatedModules = require(ReplicatedStorage:WaitForChild('Modules'))
+local EventClass = require(script.Event)
+local TableUtility = require(script.Table)
 
-local EventClass = ReplicatedModules.Classes.Event
-local TableUtility = ReplicatedModules.Utility.Table
+local RNetModule = require(script.Parent.RNet)
+local Bridge = RNetModule.Create("ReplicatedData")
 
-local DataRemote = ReplicatedModules.Services.RemoteService:GetRemote('DataRemote', 'RemoteEvent', false)
+local RemoteEnums = { Set = 1, Update = 2, Remove = 3, }
 
+-- // Module // --
 local Module = {}
 
 warn(string.format('[%s] Replicated Data', RunService:IsServer() and 'Server' or 'Client'))
@@ -26,16 +27,20 @@ if RunService:IsServer() then
 	-- Check if data has updated
 	function Module:CheckDataUpdated( Category, Data, PlayerTable )
 		local newCacheString = HttpService:JSONEncode(Data)
+		print(Category, newCacheString, PlayerTable)
 		if PlayerTable then
 			local cacheIndex = Category..tostring(PlayerTable)
 			if (not comparisonCache.Private[cacheIndex]) or (newCacheString ~= comparisonCache.Private[cacheIndex]) then
 				comparisonCache.Private[cacheIndex] = newCacheString
+				print('has updated')
 				return true
 			end
 		elseif (not comparisonCache.Public[Category]) or (newCacheString ~= comparisonCache.Public[Category]) then
 			comparisonCache.Public[Category] = newCacheString
+			print('has updated')
 			return true
 		end
+		print('has not updated')
 		return false
 	end
 
@@ -49,9 +54,9 @@ if RunService:IsServer() then
 		end
 		-- send to player(s)
 		if LocalPlayer then
-			DataRemote:FireClient(LocalPlayer, Category, Data)
+			Bridge:FireClient(LocalPlayer, Category, Data)
 		else
-			DataRemote:FireAllClients(Category, Data)
+			Bridge:FireAllClients(Category, Data)
 		end
 	end
 
@@ -168,7 +173,7 @@ if RunService:IsServer() then
 	-- if they haven't asked in the last 2 seconds then
 	-- update their data
 	local Debounce = {}
-	DataRemote.OnServerEvent:Connect(function(LocalPlayer)
+	Bridge:OnServerEvent(function(LocalPlayer)
 		if Debounce[LocalPlayer.Name] and time() < Debounce[LocalPlayer.Name] then
 			return
 		end
@@ -188,6 +193,10 @@ if RunService:IsServer() then
 	end
 
 	function Module:Init( _ )
+
+	end
+
+	function Module:Start()
 		-- update all players
 		for _ , LocalPlayer in ipairs(Players:GetPlayers()) do
 			Module:PlayerAdded(LocalPlayer)
@@ -204,6 +213,7 @@ if RunService:IsServer() then
 			end
 		end)
 	end
+
 else
 	local activeCache = { }
 	Module.Cache = activeCache
@@ -221,10 +231,14 @@ else
 		return activeCache[Category]
 	end
 
-	function Module:Init( _ )
+	function Module:Init(_)
+
+	end
+
+	function Module:Start()
 
 		-- when this client receives data
-		DataRemote.OnClientEvent:Connect(function(Category, Data)
+		Bridge:OnClientEvent(function(Category, Data)
 			-- print(Category)
 			if activeCache[Category] then
 				for k,v in pairs(Data) do
@@ -240,7 +254,7 @@ else
 		task.defer(function()
 			repeat task.wait(0.5)
 				-- print("Requesting Player Data")
-				DataRemote:FireServer()
+				Bridge:FireServer()
 			until Module:GetData('PlayerData')
 			-- print("Got Player Data")
 			Module.OnUpdate:Fire('PlayerData', Module:GetData('PlayerData'))
