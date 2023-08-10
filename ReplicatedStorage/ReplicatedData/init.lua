@@ -8,7 +8,7 @@ local TableUtility = require(script.Table)
 local RNetModule = require(script.Parent.RNet)
 local Bridge = RNetModule.Create("ReplicatedData")
 
-local RemoteEnums = { Init = 1, Set = 2, Remove = 3, }
+local RemoteEnums = { Set = 1, Remove = 2, }
 
 -- // Module // --
 local Module = {}
@@ -164,15 +164,13 @@ if RunService:IsServer() then
 	function Module:Init(_)
 
 		local Debounce = {}
-		Bridge:OnServerEvent(function(LocalPlayer, Job)
+		Bridge:OnServerEvent(function(LocalPlayer)
 			if Debounce[LocalPlayer.Name] and time() < Debounce[LocalPlayer.Name] then
 				return
 			end
 			Debounce[LocalPlayer.Name] = time() + 2
 
-			if Job == RemoteEnums.Init then
-				Update( LocalPlayer )
-			end
+			Update( LocalPlayer )
 		end)
 
 		local function OnPlayerAdded( LocalPlayer )
@@ -237,7 +235,7 @@ else
 	end
 
 	function Module:Start()
-		Bridge:FireServer( RemoteEnums.Init )
+		Bridge:FireServer()
 	end
 
 end
