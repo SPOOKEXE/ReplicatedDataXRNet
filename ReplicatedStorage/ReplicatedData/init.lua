@@ -8,11 +8,7 @@ local TableUtility = require(script.Table)
 local RNetModule = require(script.Parent.RNet)
 local Bridge = RNetModule.Create("ReplicatedData")
 
-local RemoteEnums = {
-	Init = 1,
-	Set = 2,
-	Remove = 3,
-}
+local RemoteEnums = { Init = 1, Set = 2, Remove = 3, }
 
 -- // Module // --
 local Module = {}
@@ -47,13 +43,14 @@ if RunService:IsServer() then
 		for _, key in ipairs( Module.ReplicationKeyBlacklist ) do
 			data[key] = nil
 		end
+
 		-- send to target list of player or all players
 		if playerList then
-			Bridge:FireAllClients( RemoteEnums.Set, category, data )
-		else
 			for _, LocalPlayer in ipairs( playerList ) do
 				Bridge:FireClient( LocalPlayer, RemoteEnums.Set, category, data )
 			end
+		else
+			Bridge:FireAllClients( RemoteEnums.Set, category, data )
 		end
 	end
 
@@ -74,7 +71,7 @@ if RunService:IsServer() then
 	end
 
 	-- set data in the category (public or private depending on whitelist)
-	function Module:SetCategory( category : string, data : any, whitelist : { Player }? )
+	function Module:SetData( category : string, data : any, whitelist : { Player }? )
 		if whitelist then
 			-- private data for a select group of players
 			table.insert(Module.Replications.Private, { HttpService:GenerateGUID(false), category, data, whitelist })
@@ -126,27 +123,33 @@ if RunService:IsServer() then
 
 	local function Update( TargetPlayer : Player? )
 		for category, data in pairs( Module.Replications.Public ) do
-			if not CheckComparisonUpdate( category, data, nil ) then
+			local hasUpdated = CheckComparisonUpdate( category, data, nil )
+			-- print('public: ', category, hasUpdated)
+			if not hasUpdated then
 				continue
 			end
-			SendDataToPlayers( category, data, TargetPlayer or nil )
+			SendDataToPlayers( category, data, TargetPlayer and { TargetPlayer } or nil )
 		end
 
 		local index = 1
 		while index <= #Module.Replications.Private do
 			local replicationInfo = Module.Replications.Private[index]
+
 			-- check if player table is empty
 			local UUID, Category, Data, PlayerTable = unpack( replicationInfo )
 			if #PlayerTable == 0 then
 				table.remove( Module.Replications.Private, index )
 				continue
 			end
+
 			-- if data has updated
-			if CheckComparisonUpdate( Category, Data, UUID ) then
+			local hasUpdated = CheckComparisonUpdate( Category, Data, UUID )
+			-- print('Private: ', Category, index, hasUpdated)
+			if hasUpdated then
 				if TargetPlayer then
 					-- update specific player
 					if table.find( PlayerTable, TargetPlayer ) then
-						SendDataToPlayers(Category, Data, {TargetPlayer})
+						SendDataToPlayers( Category, Data, {TargetPlayer} )
 					end
 				else
 					-- update all players

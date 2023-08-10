@@ -4,7 +4,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ReplicatedData = require(ReplicatedStorage:WaitForChild('ReplicatedData'))
 local RNetModule = require(ReplicatedStorage:WaitForChild('RNet'))
 
-ReplicatedData.OnAdded:Connect(function(...)
+local Counter = { Value = 1 }
+ReplicatedData:SetData('TestRep', Counter)
+
+--[[ReplicatedData.OnAdded:Connect(function(...)
 	print("Added: ", ...)
 end)
 
@@ -14,7 +17,9 @@ end)
 
 ReplicatedData.OnRemoved:Connect(function(...)
 	print("Removed: ", ...)
-end)
+end)]]
+
+local PlayerDataCache = {}
 
 local function Increment(Data)
 	Data.Stats.Experience += 8
@@ -28,9 +33,10 @@ end
 
 local function OnPlayerAdded( LocalPlayer )
 
-	local Data = {
+	PlayerDataCache[LocalPlayer] = {
 		Banned = nil,
 
+		Counter = 0,
 		Stats = {
 			Level = 1,
 			Experience = 8,
@@ -40,27 +46,20 @@ local function OnPlayerAdded( LocalPlayer )
 		},
 
 		Inventory = {
-			["Apple"] = {
+			Apple = {
 				["AAAA-AAAA-AAAA"] = { Quantity = 3 }
 			},
-			["Pear"] = {
+			Pear = {
 				["BBBB-BBBB-BBBB"] = { Quantity = 6 }
 			},
 		},
 	}
 
 	print("Set Replicated Data: ", LocalPlayer.Name)
-	ReplicatedData:SetData('PlayerData', Data, { LocalPlayer })
-
-	task.defer(function()
-		for _ = 1, 10 do
-			task.wait(0.25)
-			Increment(Data)
-		end
-		ReplicatedData:RemoveDataForPlayer('PlayerData', LocalPlayer)
-	end)
+	ReplicatedData:SetData('PlayerData', PlayerDataCache[LocalPlayer], { LocalPlayer })
 end
 
+RNetModule.StartService()
 ReplicatedData:Init()
 ReplicatedData:Start()
 
@@ -68,3 +67,20 @@ for _, LocalPlayer in ipairs( Players:GetPlayers() ) do
 	task.defer( OnPlayerAdded, LocalPlayer )
 end
 Players.PlayerAdded:Connect(OnPlayerAdded)
+
+task.defer(function()
+
+	while true do
+		task.wait(0.25)
+		for playerInstance, playerData in pairs( PlayerDataCache ) do
+			playerData.Counter += 1
+			Counter.Value += 1
+			if playerData.Counter > 30 then
+				PlayerDataCache[playerInstance] = nil
+				continue
+			end
+			Increment( playerData )
+		end
+	end
+
+end)
