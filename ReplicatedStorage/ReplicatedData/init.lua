@@ -5,8 +5,10 @@ local HttpService = game:GetService('HttpService')
 local EventClass = require(script.Event)
 local TableUtility = require(script.Table)
 
-local RNetModule = require(script.Parent.RNet)
-local Bridge = RNetModule.Create("ReplicatedData")
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local ReplicatedModules = require(ReplicatedStorage:WaitForChild('Modules'))
+
+local Bridge = ReplicatedModules.Services.RNet.Create("ReplicatedData")
 
 local RemoteEnums = { Set = 1, Remove = 2, }
 
@@ -124,12 +126,17 @@ if RunService:IsServer() then
 
 	local function Update( TargetPlayer : Player? )
 		for category, data in pairs( Module.Replications.Public ) do
+			if TargetPlayer then
+				SendDataToPlayers( category, data, { TargetPlayer } )
+				continue
+			end
+
 			local hasUpdated = CheckComparisonUpdate( category, data, nil )
 			-- print('public: ', category, hasUpdated)
 			if not hasUpdated then
 				continue
 			end
-			SendDataToPlayers( category, data, TargetPlayer and { TargetPlayer } or nil )
+			SendDataToPlayers( category, data, nil )
 		end
 
 		local index = 1
@@ -146,17 +153,16 @@ if RunService:IsServer() then
 			-- if data has updated
 			local hasUpdated = CheckComparisonUpdate( Category, Data, UUID )
 			-- print('Private: ', Category, index, hasUpdated)
-			if hasUpdated then
-				if TargetPlayer then
-					-- update specific player
-					if table.find( PlayerTable, TargetPlayer ) then
-						SendDataToPlayers( Category, Data, {TargetPlayer} )
-					end
-				else
-					-- update all players
-					SendDataToPlayers( Category, Data, PlayerTable )
+			if TargetPlayer then
+				-- update specific player
+				if table.find( PlayerTable, TargetPlayer ) then
+					SendDataToPlayers( Category, Data, {TargetPlayer} )
 				end
+			elseif hasUpdated then
+				-- update all players
+				SendDataToPlayers( Category, Data, PlayerTable )
 			end
+
 			-- increment to next index
 			index += 1
 		end
@@ -171,6 +177,7 @@ if RunService:IsServer() then
 			end
 			Debounce[LocalPlayer.Name] = time() + 2
 
+			-- print(LocalPlayer.Name, 'requested for update')
 			Update( LocalPlayer )
 		end)
 
@@ -236,7 +243,12 @@ else
 	end
 
 	function Module:Start()
-		Bridge:FireServer()
+		-- keep requesting until data is available
+		while not Module:GetData('PlayerData') do
+			print('requesting data from server')
+			Bridge:FireServer()
+			task.wait(2)
+		end
 	end
 
 end
