@@ -50,7 +50,7 @@ export type ClientBridge = {
 }
 
 -- // Networker // --
-local COMMAND_TYPES = { Fire = 1, Invoke = 2 }
+local COMMAND_TYPES = { Fire = 1 }
 local DEFAULT_PACKET_LIFETIME = 5 -- how long do packets stay in queue before being deleted
 local PACKETS_PER_HEARTBEAT = 5
 local ACTIVE_BRIDGES = {}
@@ -197,11 +197,7 @@ function ClientBridge:FireServer( ... : any? )
 end
 
 function ClientBridge:InvokeServer( ... : any? )
-	table.insert(self._queue, {
-		Type=COMMAND_TYPES.Invoke,
-		Args={...},
-		TimeoutTick=tick() + DEFAULT_PACKET_LIFETIME,
-	})
+	return Networker:Invoke( self._function, ... )
 end
 
 function ClientBridge:OnClientEvent(callback : (...any?) -> nil, priority : number?)
@@ -252,12 +248,7 @@ function ServerBridge:FireAllClients(... : any?)
 end
 
 function ServerBridge:InvokeClient( LocalPlayer : Player, ... : any? )
-	table.insert(self._queue, {
-		Target=LocalPlayer,
-		Type=COMMAND_TYPES.Invoke,
-		Args={...},
-		TimeoutTick=tick() + DEFAULT_PACKET_LIFETIME,
-	})
+	return Networker:InvokeClient( self._function, LocalPlayer, ... )
 end
 
 function ServerBridge:OnServerEvent(callback : (...any?) -> any?, priority : number?)
@@ -271,7 +262,6 @@ end
 -- // Module // --
 local Module = {}
 
-local SERVICE_IS_ACTIVE = false
 local BridgeCache = { }
 
 function Module.Create( bridgeName : string )
@@ -288,14 +278,6 @@ function Module.Create( bridgeName : string )
 	return Bridge
 end
 
-function Module.StartService()
-	SERVICE_IS_ACTIVE = true
-end
-
-function Module.PauseService()
-	SERVICE_IS_ACTIVE = false
-end
-
 local function UpdateBridgeTraffic( bridge )
 	local packet = table.remove(bridge._queue, 1)
 
@@ -306,11 +288,6 @@ local function UpdateBridgeTraffic( bridge )
 			else
 				Networker:FireAll( bridge._event, packet.Args )
 			end
-		elseif packet.Type == COMMAND_TYPES.Invoke then
-			if not packet.Target then
-				error("Invoking to all clients is not supported.")
-			end
-			Networker:InvokeClient( bridge._function, packet.Target, packet.Args )
 		end
 	else -- client-side
 		if packet.Target then
@@ -318,8 +295,6 @@ local function UpdateBridgeTraffic( bridge )
 		end
 		if packet.Type == COMMAND_TYPES.Fire then
 			Networker:Fire( bridge._event, packet.Args )
-		elseif packet.Type == COMMAND_TYPES.Invoke then
-			Networker:Invoke( bridge._function, packet.Args )
 		end
 	end
 
@@ -332,15 +307,11 @@ RunService.Heartbeat:Connect(function()
 		local index = 1
 		while index <= #bridge._queue do
 			local packet = bridge._queue[ index ]
-			if packet.Type ~= COMMAND_TYPES.Invoke and now > packet.TimeoutTick then
+			if now > packet.TimeoutTick then
 				table.remove(bridge._queue, index) -- drop FIRE packets
 			else
 				index += 1
 			end
-		end
-		-- if service is inactive, skip
-		if not SERVICE_IS_ACTIVE then
-			continue
 		end
 		-- update traffic
 		if #bridge._queue == 0 then

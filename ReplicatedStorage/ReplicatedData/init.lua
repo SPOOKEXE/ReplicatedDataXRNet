@@ -78,6 +78,7 @@ if RunService:IsServer() then
 		else
 			Module.Replications.Public[ category ] = data
 		end
+		SendDataToPlayers( category, data, whitelist )
 	end
 
 	-- remove all under the category
