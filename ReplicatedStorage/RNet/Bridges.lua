@@ -154,7 +154,7 @@ local function SetupMiddleware( bridge )
 				continue
 			end
 			for _, callback in ipairs( bridge._invokeHandlers[priorityNumber] ) do
-				local values = { Threader(callback, LocalPlayer, ...) }
+				local values = { callback(LocalPlayer, ...) }
 				if #values == 0 then
 					continue
 				end
